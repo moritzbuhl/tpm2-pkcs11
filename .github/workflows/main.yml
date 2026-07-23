@@ -7,12 +7,12 @@ jobs:
     if: "!contains(github.ref, 'coverity_scan')"
     strategy:
       matrix:
-        docker_image: [ ubuntu-22.04, ubuntu-26.04, fedora-44, centos-stream10, opensuse-leap, alpine-3.24 ]
+        docker_image: [ ubuntu-22.04, ubuntu-26.04-pkcs11, fedora-44, centos-stream10, opensuse-leap, alpine-3.24 ]
         compiler: [gcc, clang]
         exclude:
           - docker_image: ubuntu-22.04
             compiler: clang
-          - docker_image: ubuntu-26.04
+          - docker_image: ubuntu-26.04-pkcs11
             compiler: gcc
     steps:
       - name: Check out repository
@@ -42,7 +42,7 @@ jobs:
           tpm2-software/ci/runCI@main
         with:
           ENABLE_COVERAGE: true
-          DOCKER_IMAGE: ubuntu-26.04
+          DOCKER_IMAGE: ubuntu-26.04-pkcs11
           CC: gcc
           PROJECT_NAME: ${{ github.event.repository.name }}
       - name: failure
@@ -83,7 +83,7 @@ jobs:
           REPO_BRANCH: ${{ github.ref }}
           REPO_NAME: ${{ github.repository }}
           ENABLE_COVERITY: true
-          DOCKER_IMAGE: ubuntu-26.04
+          DOCKER_IMAGE: ubuntu-26.04-pkcs11
           CC: gcc
           COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
           COVERITY_SUBMISSION_EMAIL: william.c.roberts@gmail.com
