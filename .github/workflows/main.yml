@@ -7,11 +7,9 @@ jobs:
     if: "!contains(github.ref, 'coverity_scan')"
     strategy:
       matrix:
-        docker_image: [ ubuntu-22.04, ubuntu-26.04-pkcs11, fedora-44, centos-stream10, opensuse-leap, alpine-3.24 ]
+        docker_image: [ ubuntu-26.04-pkcs11, fedora-44-pkcs11, centos-stream10-pkcs11, opensuse-leap-pkcs11, alpine-3.24-pkcs11 ]
         compiler: [gcc, clang]
         exclude:
-          - docker_image: ubuntu-22.04
-            compiler: clang
           - docker_image: ubuntu-26.04-pkcs11
             compiler: gcc
     steps:
@@ -61,7 +59,7 @@ jobs:
           tpm2-software/ci/runCI@main
         with:
           ENABLE_FUZZING: true
-          DOCKER_IMAGE: fedora-44
+          DOCKER_IMAGE: fedora-44-pkcs11
           CC: clang
           PROJECT_NAME: ${{ github.event.repository.name }}
       - name: failure
