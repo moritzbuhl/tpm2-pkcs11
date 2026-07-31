@@ -53,9 +53,15 @@ pkgconfig_DATA += lib/tpm2-pkcs11.pc
 EXTRA_DIST += lib/tpm2-pkcs11.map
 
 if HAVE_LD_VERSION_SCRIPT
-src_libtpm2_pkcs11_la_LDFLAGS = -Wl,--version-script=$(srcdir)/lib/tpm2-pkcs11.map
+src_libtpm2_pkcs11_la_LDFLAGS = -Wl,--version-script=$(srcdir)/lib/tpm2-pkcs11.map $(subst -fsanitize=address,,$(AM_LDFLAGS))
+else
+src_libtpm2_pkcs11_la_LDFLAGS = $(subst -fsanitize=address,,$(AM_LDFLAGS))
 endif # HAVE_LD_VERSION_SCRIPT
-src_libtpm2_pkcs11_la_LIBADD = $(AM_LDFLAGS)
+# Build the PKCS#11 module without ASan instrumentation even when ASan is
+# enabled globally. External loaders like pkcs11-tool and p11tool dlopen the
+# module with RTLD_DEEPBIND, which is incompatible with the sanitizer runtime.
+# Tests still exercise the code with ASan via the test-only libraries.
+src_libtpm2_pkcs11_la_CFLAGS = $(subst -fsanitize=address,,$(AM_CFLAGS))
 src_libtpm2_pkcs11_la_SOURCES = $(LIB_PKCS11_SRC) $(LIB_PKCS11_INTERNAL_LIB_SRC)
 
 if HAVE_PREFIX

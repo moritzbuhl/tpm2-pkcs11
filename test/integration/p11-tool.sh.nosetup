@@ -97,7 +97,9 @@ echo "Got token url: ${TOKENURL}"
 
 echo "Testing mech and random function"
 p11_tool --list-mechanisms ${TOKENURL}
-test "$(p11tool -d 0 --generate-random=4096 ${TOKENURL} \
+# Newer GnuTLS p11tool rejects a debug level of 0 ("'0' is not a recognizable number"),
+# so invoke without -d. The default log level keeps stdout clean for the byte count.
+test "$(p11tool --generate-random=4096 ${TOKENURL} \
             | wc -c)" == "4096"
 echo "Random function works"
 

@@ -6,36 +6,39 @@ setup_asan() {
     return 0
   fi
 
-  # To get line numbers set up the asan symbolizer
-  clang_version=`$CC --version | head -n 1 | cut -d\  -f 3-3 | cut -d\. -f 1-3 | cut -d- -f 1-1`
-  # Sometimes the version string has an Ubuntu on the front of it and the field
-  # location changes
-  if [ $clang_version == "version" ]; then
-    clang_version=`$CC --version | head -n 1 | cut -d\  -f 4-4 | cut -d\. -f 1-3`
+  # Prefer the ASan runtime that belongs to the selected compiler. This avoids
+  # hardcoding versioned paths that drift with every clang release and break on
+  # distros with non-standard layouts.
+  p=`$CC -print-file-name=libclang_rt.asan-$(arch).so 2>/dev/null || true`
+  if [ -n "$p" ] && [ -e "$p" ]; then
+    echo "Found libasan via compiler at: $p"
+  else
+    # Fallback to the old versioned discovery for older clang packages.
+    clang_version=`$CC --version | head -n 1 | cut -d\  -f 3-3 | cut -d\. -f 1-3 | cut -d- -f 1-1`
+    if [ "$clang_version" == "version" ]; then
+      clang_version=`$CC --version | head -n 1 | cut -d\  -f 4-4 | cut -d\. -f 1-3`
+    fi
+    if grep -qi '\-+rc' <<< "$clang_version"; then
+      clang_version=$(echo "$clang_version" | cut -d'-' -f1-1)
+    fi
+
+    echo "Detected clang version: $clang_version"
+    minor_maj=`echo "$clang_version" | cut -d\. -f 1-2`
+    maj=`echo "$clang_version" | cut -d\. -f 1-1`
+
+    p="/usr/lib/llvm-$minor_maj/lib/clang/$clang_version/lib/linux/libclang_rt.asan-$(arch).so"
+    if [ ! -f "$p" ]; then
+      p="/usr/lib/llvm-$maj/lib/clang/$clang_version/lib/linux/libclang_rt.asan-$(arch).so"
+    fi
+    if [ ! -f "$p" ]; then
+      p="/usr/lib64/clang/$clang_version/lib/linux/libclang_rt.asan-$(arch).so"
+    fi
+    if [ ! -f "$p" ]; then
+      p="/usr/lib64/clang/$maj/lib/linux/libclang_rt.asan-$(arch).so"
+    fi
   fi
 
-  # sometimes thier is an rc version
-  if grep -qi '\-+rc' <<< "$clang_version"; then
-    clang_version=$(echo "$clang_version" | cut -d'-' -f1-1)
-  fi
-
-  echo "Detected clang version: $clang_version"
-  minor_maj=`echo "$clang_version" | cut -d\. -f 1-2`
-  maj=`echo "$clang_version" | cut -d\. -f 1-1`
-
-  p="/usr/lib/llvm-$minor_maj/lib/clang/$clang_version/lib/linux/libclang_rt.asan-$(arch).so"
-  echo "Looking for libasan to LD_PRELOAD at: $p"
-  if [ ! -f "$p" ]; then
-    p="/usr/lib/llvm-$maj/lib/clang/$clang_version/lib/linux/libclang_rt.asan-$(arch).so"
-  fi
-  if [ ! -f "$p" ]; then
-    p="/usr/lib64/clang/$clang_version/lib/linux/libclang_rt.asan-$(arch).so"
-  fi
-  if [ ! -f "$p" ]; then
-    p="/usr/lib64/clang/$maj/lib/linux/libclang_rt.asan-$(arch).so"
-  fi
-
-  if [ ! -f "$p" ]; then
+  if [ -z "$p" ] || [ ! -f "$p" ]; then
     echo "Couldn't find libasan.so"
     return -1
   fi

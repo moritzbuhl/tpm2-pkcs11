@@ -526,6 +526,11 @@ AS_IF([test x"$enable_hardening" != xno], [
   add_hardened_c_flag([-Wstrict-overflow=5])
 
   add_hardened_c_flag([-O2])
+  # Alpine's clang enables -D_FORTIFY_SOURCE=2 by default when optimizing.
+  # AX_ADD_FORTIFY_SOURCE appends another -D_FORTIFY_SOURCE, producing a macro
+  # redefinition error under -Werror. Undefine the compiler default first so
+  # AX_ADD_FORTIFY_SOURCE can set the project value without conflict.
+  CPPFLAGS="-U_FORTIFY_SOURCE $CPPFLAGS"
   AX_ADD_FORTIFY_SOURCE
 
   add_hardened_c_flag([-fPIC])
