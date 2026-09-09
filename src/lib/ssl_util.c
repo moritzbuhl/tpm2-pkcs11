@@ -125,25 +125,71 @@ static CK_RV get_RSA_evp_pubkey(CK_ATTRIBUTE_PTR e_attr, CK_ATTRIBUTE_PTR n_attr
 
     /* convert params to EVP key */
     evp_ctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
-    if (!evp_ctx) {
-        SSL_UTIL_LOGE("EVP_PKEY_CTX_new_id");
-        goto out;
+    if (evp_ctx) {
+        int rc = EVP_PKEY_fromdata_init(evp_ctx);
+        if (rc == 1) {
+            rc = EVP_PKEY_fromdata(evp_ctx, out_pkey, EVP_PKEY_PUBLIC_KEY, params);
+            if (rc == 1) {
+                rv = CKR_OK;
+                goto out;
+            }
+            SSL_UTIL_LOGE("EVP_PKEY_fromdata");
+        } else {
+            SSL_UTIL_LOGE("EVP_PKEY_fromdata_init");
+        }
+    } else {
+        SSL_UTIL_LOGE("EVP_PKEY_CTX_new_from_name");
     }
 
-    int rc = EVP_PKEY_fromdata_init(evp_ctx);
-    if (rc != 1) {
-        SSL_UTIL_LOGE("EVP_PKEY_fromdata_init");
-        goto out;
-    }
+    /*
+     * Fallback: EVP_PKEY_fromdata_init() requires ctx->keymgmt to be set,
+     * which OpenSSL populates via EVP_KEYMGMT_fetch() -- but that fetch is
+     * SKIPPED whenever some other component sharing this process (e.g. an
+     * ENGINE such as libp11's engine_pkcs11, loaded via "-engine pkcs11"
+     * for smartcard support) has registered itself as the process-wide
+     * default EVP_PKEY_METHOD provider for RSA via ENGINE_set_default().
+     * That is normal, expected ENGINE usage and not specific to this
+     * caller, but it leaves ctx->keymgmt NULL here, and
+     * EVP_PKEY_fromdata_init() (unlike OpenSSL releases before the
+     * "foreign key" fix was reverted in PR #23063) no longer falls back
+     * to a legacy pmeth-based path in that case, so it errors out even
+     * though nothing is actually wrong with these e/n values.
+     *
+     * Since this has nothing to do with providers/keymgmt at all, build
+     * the EVP_PKEY directly via the classic RSA_set0_key() +
+     * EVP_PKEY_assign_RSA() APIs instead (the same technique used by the
+     * pre-OpenSSL-3.0 code path below, and by libp11 itself for wrapping
+     * its own "foreign" keys), which sidesteps ENGINE/provider defaults
+     * entirely.
+     */
+    {
+        RSA *rsa = RSA_new();
+        if (!rsa) {
+            SSL_UTIL_LOGE("RSA_new");
+            goto out;
+        }
+        if (!RSA_set0_key(rsa, n, e, NULL)) {
+            SSL_UTIL_LOGE("RSA_set0_key");
+            RSA_free(rsa);
+            goto out;
+        }
+        /* ownership of n/e transferred to rsa; avoid double-free below */
+        n = e = NULL;
 
-    rc = EVP_PKEY_fromdata(evp_ctx, out_pkey, EVP_PKEY_PUBLIC_KEY, params);
-    if (rc != 1) {
-        SSL_UTIL_LOGE("EVP_PKEY_fromdata");
-        EVP_PKEY_CTX_free(evp_ctx);
-        goto out;
+        EVP_PKEY *pkey = EVP_PKEY_new();
+        if (!pkey) {
+            SSL_UTIL_LOGE("EVP_PKEY_new");
+            RSA_free(rsa);
+            goto out;
+        }
+        if (EVP_PKEY_assign_RSA(pkey, rsa) != 1) {
+            RSA_free(rsa);
+            EVP_PKEY_free(pkey);
+            goto out;
+        }
+        *out_pkey = pkey;
+        rv = CKR_OK;
     }
-
-    rv = CKR_OK;
 
 out:
 	EVP_PKEY_CTX_free(evp_ctx);
