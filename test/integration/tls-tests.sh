@@ -51,10 +51,7 @@ openssl ca -batch -keyfile "$CA_KEY" -cert "$CA_PEM" -in server.csr -out server.
 openssl x509 -in server.crt -out server.pem -outform pem
 
 # create and sign PKCS#11 cert for client
-if [ "$OSSL3_DETECTED" -eq "0" ]; then
-    export OPENSSL_CONF="$TEST_FIXTURES/ossl.cnf"
-    openssl req -new -engine pkcs11 -keyform engine -key "$PKCS11_KEY" -out client.csr -subj "/C=US/ST=Radius/L=Somewhere/O=Example Inc./CN=testing/emailAddress=testing@123.com"
-else
+if [ "$OSSL3_DETECTED" -eq "1" ]; then
     pushd $TPM2_PKCS11_STORE
     yaml_rsa0=$(tpm2_ptool export --label=label --userpin=myuserpin --key-label=rsa0 --path=$TPM2_PKCS11_STORE)
     popd
@@ -67,6 +64,11 @@ else
       -out client.csr
 fi
 
+if [ "$OSSL3_DETECTED" -eq "0" ] || openssl engine >/dev/null 2>&1; then
+    OPENSSL_CONF="$TEST_FIXTURES/ossl.cnf" \
+    openssl req -new -engine pkcs11 -keyform engine -key "$PKCS11_KEY" -out client.csr -subj "/C=US/ST=Radius/L=Somewhere/O=Example Inc./CN=testing/emailAddress=testing@123.com"
+fi
+
 openssl ca -batch -keyfile "$CA_KEY" -cert "$CA_PEM" -in client.csr -out client.crt -extensions xpclient_ext -extfile "$EXT_FILE" -config "$CLIENT_CNF"
 openssl x509 -in client.crt -out client_tpm.pem -outform pem
 
@@ -77,9 +79,12 @@ openssl s_server -debug -CAfile "$CA_PEM" -cert server.pem -key server.key -Veri
 sleep 1
 
 # default connects to 127.0.0.1:443
-if [ "$OSSL3_DETECTED" -eq "0" ]; then
+if [ "$OSSL3_DETECTED" -eq "0" ] || openssl engine >/dev/null 2>&1; then
+    OPENSSL_CONF="$TEST_FIXTURES/ossl.cnf" \
     openssl s_client -engine pkcs11 -keyform engine -key "$PKCS11_KEY" -CAfile "$CA_PEM" -cert client_tpm.pem <<< 'Q'
-else
+fi
+
+if [ "$OSSL3_DETECTED" -eq "1" ]; then
     TPM2OPENSSL_PARENT_AUTH="mypobjpin" openssl s_client -provider tpm2 -provider default \
       -key "$TPM2_PKCS11_STORE/rsa0.pem" -pass "pass:$auth_rsa0" -ignore_unexpected_eof \
       -CAfile "$CA_PEM" -cert client_tpm.pem <<< 'Q'
