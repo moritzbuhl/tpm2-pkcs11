@@ -125,23 +125,11 @@ static CK_RV get_RSA_evp_pubkey(CK_ATTRIBUTE_PTR e_attr, CK_ATTRIBUTE_PTR n_attr
 
     /* convert params to EVP key */
     evp_ctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
-    if (evp_ctx) {
-        int rc = EVP_PKEY_fromdata_init(evp_ctx);
-        if (rc == 1) {
-            rc = EVP_PKEY_fromdata(evp_ctx, out_pkey, EVP_PKEY_PUBLIC_KEY, params);
-            if (rc == 1) {
-                rv = CKR_OK;
-                goto out;
-            }
-            SSL_UTIL_LOGE("EVP_PKEY_fromdata");
-        } else {
-            SSL_UTIL_LOGE("EVP_PKEY_fromdata_init");
-        }
-    } else {
+    if (!evp_ctx) {
+#ifdef LIB_TPM2_OPENSSL_OPENSSL_POST400
         SSL_UTIL_LOGE("EVP_PKEY_CTX_new_from_name");
-    }
-
-    {
+        goto out;
+#else
         RSA *rsa = RSA_new();
         if (!rsa) {
             SSL_UTIL_LOGE("RSA_new");
@@ -168,7 +156,24 @@ static CK_RV get_RSA_evp_pubkey(CK_ATTRIBUTE_PTR e_attr, CK_ATTRIBUTE_PTR n_attr
         }
         *out_pkey = pkey;
         rv = CKR_OK;
+        goto out;
+#endif
     }
+
+    int rc = EVP_PKEY_fromdata_init(evp_ctx);
+    if (rc != 1) {
+        SSL_UTIL_LOGE("EVP_PKEY_fromdata_init");
+        goto out;
+    }
+
+    rc = EVP_PKEY_fromdata(evp_ctx, out_pkey, EVP_PKEY_PUBLIC_KEY, params);
+    if (rc != 1) {
+        SSL_UTIL_LOGE("EVP_PKEY_fromdata");
+        EVP_PKEY_CTX_free(evp_ctx);
+        goto out;
+    }
+
+    rv = CKR_OK;
 
 out:
 	EVP_PKEY_CTX_free(evp_ctx);
