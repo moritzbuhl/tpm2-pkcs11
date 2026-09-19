@@ -141,27 +141,6 @@ static CK_RV get_RSA_evp_pubkey(CK_ATTRIBUTE_PTR e_attr, CK_ATTRIBUTE_PTR n_attr
         SSL_UTIL_LOGE("EVP_PKEY_CTX_new_from_name");
     }
 
-    /*
-     * Fallback: EVP_PKEY_fromdata_init() requires ctx->keymgmt to be set,
-     * which OpenSSL populates via EVP_KEYMGMT_fetch() -- but that fetch is
-     * SKIPPED whenever some other component sharing this process (e.g. an
-     * ENGINE such as libp11's engine_pkcs11, loaded via "-engine pkcs11"
-     * for smartcard support) has registered itself as the process-wide
-     * default EVP_PKEY_METHOD provider for RSA via ENGINE_set_default().
-     * That is normal, expected ENGINE usage and not specific to this
-     * caller, but it leaves ctx->keymgmt NULL here, and
-     * EVP_PKEY_fromdata_init() (unlike OpenSSL releases before the
-     * "foreign key" fix was reverted in PR #23063) no longer falls back
-     * to a legacy pmeth-based path in that case, so it errors out even
-     * though nothing is actually wrong with these e/n values.
-     *
-     * Since this has nothing to do with providers/keymgmt at all, build
-     * the EVP_PKEY directly via the classic RSA_set0_key() +
-     * EVP_PKEY_assign_RSA() APIs instead (the same technique used by the
-     * pre-OpenSSL-3.0 code path below, and by libp11 itself for wrapping
-     * its own "foreign" keys), which sidesteps ENGINE/provider defaults
-     * entirely.
-     */
     {
         RSA *rsa = RSA_new();
         if (!rsa) {
