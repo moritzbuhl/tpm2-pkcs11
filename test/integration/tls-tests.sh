@@ -75,18 +75,26 @@ openssl x509 -in client.crt -out client_tpm.pem -outform pem
 # OpenSSL version 1.0.2g ends up in a state where it tries to read from stdin instead of the ssl connection.
 # Feeding it one byte as stdin avoids this condition which is described in more detail here:
 # https://github.com/tpm2-software/tpm2-pkcs11/pull/366
-openssl s_server -debug -CAfile "$CA_PEM" -cert server.pem -key server.key -Verify 1 <<< '1' &
-sleep 1
+openssl_s_server()
+{
+    openssl s_server -debug -CAfile "$CA_PEM" -cert server.pem -key server.key -Verify 1 <<< '1' &
+    OPENSSL_S_SERVER_PID=$!
+    sleep 1
+}
 
 # default connects to 127.0.0.1:443
 if [ "$OSSL3_DETECTED" -eq "0" ] || openssl engine >/dev/null 2>&1; then
+    openssl_s_server
     OPENSSL_CONF="$TEST_FIXTURES/ossl.cnf" \
     openssl s_client -engine pkcs11 -keyform engine -key "$PKCS11_KEY" -CAfile "$CA_PEM" -cert client_tpm.pem <<< 'Q'
+    wait "$OPENSSL_S_SERVER_PID"
 fi
 
 if [ "$OSSL3_DETECTED" -eq "1" ]; then
+    openssl_s_server
     TPM2OPENSSL_PARENT_AUTH="mypobjpin" openssl s_client -provider tpm2 -provider default \
       -key "$TPM2_PKCS11_STORE/rsa0.pem" -pass "pass:$auth_rsa0" -ignore_unexpected_eof \
       -CAfile "$CA_PEM" -cert client_tpm.pem <<< 'Q'
+    wait "$OPENSSL_S_SERVER_PID"
 fi
 exit 0
