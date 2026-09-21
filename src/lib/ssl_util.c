@@ -81,6 +81,13 @@ CK_RV ssl_util_check_PKCS1_TYPE_2(const CK_BYTE_PTR inbuf, CK_ULONG inlen, CK_UL
 #if defined(LIB_TPM2_OPENSSL_OPENSSL_POST300)
 #include <openssl/core_names.h>
 #include <openssl/param_build.h>
+#if !defined(LIB_TPM2_OPENSSL_OPENSSL_POST400)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+#endif
+
+#if defined(LIB_TPM2_OPENSSL_OPENSSL_POST300)
 static CK_RV get_RSA_evp_pubkey(CK_ATTRIBUTE_PTR e_attr, CK_ATTRIBUTE_PTR n_attr, EVP_PKEY **out_pkey) {
 
     CK_RV rv = CKR_GENERAL_ERROR;
@@ -371,6 +378,11 @@ static CK_RV get_EC_evp_pubkey(CK_ATTRIBUTE_PTR ecparams, CK_ATTRIBUTE_PTR ecpoi
     *out_pkey = pkey;
     return CKR_OK;
 }
+#endif
+
+#if defined(LIB_TPM2_OPENSSL_OPENSSL_POST300) && \
+		!defined(LIB_TPM2_OPENSSL_OPENSSL_POST400)
+#pragma GCC diagnostic pop
 #endif
 
 CK_RV ssl_util_attrs_to_evp(attr_list *attrs, EVP_PKEY **outpkey) {
