@@ -195,7 +195,7 @@ if [ "$OSSL3_DETECTED" -eq "1" ]; then
     	-out "$cert.rsa2"
 fi
 
-if [ "$OSSL3_DETECTED" -eq "0" ] || openssl engine >/dev/null 2>&1; then
+if ossl_engine_supported; then
     export OPENSSL_CONF="$TEST_FIXTURES/ossl.cnf"
     # since we use the shared lib in a non-asan executable via dlopen() we need to set up
     # asan so we have defined symbols and we don't worry about leaks (since the tools are

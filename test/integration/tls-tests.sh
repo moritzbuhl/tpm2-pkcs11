@@ -64,7 +64,7 @@ if [ "$OSSL3_DETECTED" -eq "1" ]; then
       -out client.csr
 fi
 
-if [ "$OSSL3_DETECTED" -eq "0" ] || openssl engine >/dev/null 2>&1; then
+if ossl_engine_supported; then
     OPENSSL_CONF="$TEST_FIXTURES/ossl.cnf" \
     openssl req -new -engine pkcs11 -keyform engine -key "$PKCS11_KEY" -out client.csr -subj "/C=US/ST=Radius/L=Somewhere/O=Example Inc./CN=testing/emailAddress=testing@123.com"
 fi
@@ -83,7 +83,7 @@ openssl_s_server()
 }
 
 # default connects to 127.0.0.1:443
-if [ "$OSSL3_DETECTED" -eq "0" ] || openssl engine >/dev/null 2>&1; then
+if ossl_engine_supported; then
     openssl_s_server
     OPENSSL_CONF="$TEST_FIXTURES/ossl.cnf" \
     openssl s_client -engine pkcs11 -keyform engine -key "$PKCS11_KEY" -CAfile "$CA_PEM" -cert client_tpm.pem <<< 'Q'
